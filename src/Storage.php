@@ -48,12 +48,18 @@ final class Storage {
 	/**
 	 * Construct the storage handle.
 	 *
-	 * @param string      $bucket_name Bucket objects are stored in.
-	 * @param string|null $project_id  Project ID, where it cannot be inferred.
+	 * @param string      $bucket_name  Bucket objects are stored in.
+	 * @param string|null $project_id   Project ID, where it cannot be inferred.
+	 * @param string|null $api_endpoint Override the storage endpoint. Intended
+	 *                                  for pointing at an emulator in tests;
+	 *                                  leave null in production. The SDK does
+	 *                                  not honour STORAGE_EMULATOR_HOST, so an
+	 *                                  explicit override is the only way in.
 	 */
 	public function __construct(
 		private readonly string $bucket_name,
-		private readonly ?string $project_id = null
+		private readonly ?string $project_id = null,
+		private readonly ?string $api_endpoint = null
 	) {}
 
 	/**
@@ -69,6 +75,12 @@ final class Storage {
 			$config = array();
 			if ( null !== $this->project_id ) {
 				$config['projectId'] = $this->project_id;
+			}
+			if ( null !== $this->api_endpoint ) {
+				$config['apiEndpoint'] = $this->api_endpoint;
+				// An emulator has no credentials to resolve; asking the SDK to
+				// find ADC would fail before a request is ever made.
+				$config['credentials'] = array( 'type' => 'anonymous' );
 			}
 			$this->client = new StorageClient( $config );
 		}

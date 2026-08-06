@@ -35,3 +35,33 @@ jobs:
 
       - name: Unit tests
         run: vendor/bin/phpunit --no-coverage
+
+  integration:
+    runs-on: ubuntu-latest
+    name: WordPress integration
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with: { php-version: '8.3', tools: 'composer:v2', coverage: none }
+
+      - uses: ramsey/composer-install@v3
+
+      - name: Boot stack
+        run: docker compose -f docker-compose.test.yml up -d --build --wait
+
+      - name: Wire wp-config and mu-plugin
+        run: |
+          docker compose -f docker-compose.test.yml exec -T wp bash -c '
+            until [ -f /var/www/html/wp-settings.php ]; do sleep 2; done
+            grep -q anvil-config /var/www/html/wp-config.php || \
+              printf "\nrequire_once \x27/harness/anvil-config.php\x27;\n" >> /var/www/html/wp-config.php
+            mkdir -p /var/www/html/wp-content/mu-plugins
+            cp /mu-plugin/anvil-media-gcs.php /var/www/html/wp-content/mu-plugins/'
+
+      - name: Clean install + migration scenarios
+        run: docker compose -f docker-compose.test.yml exec -T wp bash /harness/run.sh
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.test.yml logs --tail=100

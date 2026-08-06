@@ -94,7 +94,10 @@ LURL=$($WP eval "echo wp_get_attachment_url($LID);")
 chk "legacy media serves from bucket, no DB rewrite" \
   "$LURL" "http://localhost:4443/$BUCKET/$YEAR/$MONTH/legacy-a.jpg"
 
-LCODE=$(curl -s -o /dev/null -w '%{http_code}' "$LURL")
+# $LURL is the browser-facing host; inside the container the emulator is
+# reachable only by its service name. Rewrite for the reachability check.
+LFETCH=$(printf %s "$LURL" | sed "s|http://localhost:4443|$GCS|")
+LCODE=$(curl -s -o /dev/null -w '%{http_code}' "$LFETCH")
 chk "legacy object actually fetchable" "$LCODE" "200"
 
 BACK=$($WP eval "echo (int) attachment_url_to_postid('$LURL');")

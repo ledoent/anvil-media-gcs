@@ -17,7 +17,11 @@ define( 'FS_METHOD', 'direct' );
 
 // Stage 1, here in wp-config.php: the wrapper must exist before WordPress
 // touches the filesystem.
-$anvil_storage = new Ledoent\AnvilMediaGcs\Storage( getenv( 'ANVIL_BUCKET' ), 'test-project' );
+$anvil_storage = new Ledoent\AnvilMediaGcs\Storage(
+	getenv( 'ANVIL_BUCKET' ),
+	'test-project',
+	getenv( 'STORAGE_EMULATOR_HOST' ) ?: null
+);
 $anvil_storage->register_stream_wrapper();
 
 // Stage 2 happens in the mu-plugin: add_filter() does not exist yet.
