@@ -72,10 +72,16 @@ final class Storage {
 			return;
 		}
 
+		// Register the SDK's wrapper FIRST, even though we immediately replace
+		// it. This looks redundant and is not: StreamWrapper::register() also
+		// populates a *private* static client registry keyed by protocol, and
+		// the inherited parent methods (stream_open, stream_read, …) read it
+		// via self::$clients. Skip this call and every read/write fails.
+		// The class itself cannot be substituted here — StreamWrapper::register()
+		// hardcodes `StreamWrapper::class` with no late static binding — so the
+		// only way to install a subclass is to unregister and re-register.
 		$this->client()->registerStreamWrapper();
 
-		// Swap the SDK's wrapper for our caching subclass. Unregistering and
-		// re-registering is the only way in: the SDK hardcodes its own class.
 		stream_wrapper_unregister( 'gs' );
 		StreamWrapper::attach( $this->client() );
 		stream_wrapper_register( 'gs', StreamWrapper::class, STREAM_IS_URL );

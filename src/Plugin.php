@@ -19,11 +19,20 @@ namespace Ledoent\AnvilMediaGcs;
  */
 final class Plugin {
 
+	/** Normalised once; every call site previously re-trimmed it. */
+	private readonly string $base_url;
+
+	/**
+	 * @param string $public_base_url Public base URL objects are served from
+	 *                                (CDN host, or storage.googleapis.com/bucket).
+	 */
 	public function __construct(
 		private readonly Storage $storage,
-		/** Public base URL objects are served from (CDN host or storage.googleapis.com). */
-		private readonly string $public_base_url
-	) {}
+		string $public_base_url,
+		private readonly bool $skip_space_calculation = false
+	) {
+		$this->base_url = rtrim( $public_base_url, '/' );
+	}
 
 	public function boot(): void {
 		// Point uploads at the bucket. Layout is preserved (YYYY/MM/), which is
@@ -45,8 +54,11 @@ final class Plugin {
 		// CDN host. Core added this short-circuit in 6.7.
 		add_filter( 'pre_attachment_url_to_postid', array( $this, 'attachment_url_to_postid' ), 10, 2 );
 
-		// A bucket-wide recursive walk to compute site space is never acceptable.
-		add_filter( 'pre_get_space_used', array( $this, 'skip_space_used' ) );
+		// Only short-circuit space accounting when asked. Reporting 0 is a lie
+		// that silently disables multisite upload quotas, so it must be opt-in.
+		if ( $this->skip_space_calculation ) {
+			add_filter( 'pre_get_space_used', array( $this, 'skip_space_used' ) );
+		}
 	}
 
 	/**
@@ -58,7 +70,7 @@ final class Plugin {
 
 		$dirs['basedir'] = "gs://{$bucket}";
 		$dirs['path']    = $dirs['basedir'] . $dirs['subdir'];
-		$dirs['baseurl'] = rtrim( $this->public_base_url, '/' );
+		$dirs['baseurl'] = $this->base_url;
 		$dirs['url']     = $dirs['baseurl'] . $dirs['subdir'];
 
 		return $dirs;
@@ -69,7 +81,7 @@ final class Plugin {
 		if ( ! is_string( $file ) || '' === $file ) {
 			return $url;
 		}
-		return rtrim( $this->public_base_url, '/' ) . '/' . ltrim( $file, '/' );
+		return $this->base_url . '/' . ltrim( $file, '/' );
 	}
 
 	/**
@@ -91,16 +103,19 @@ final class Plugin {
 			return $meta;
 		}
 
+		// Detach before re-entering core so we do not recurse. This MUST be
+		// restored in finally: an exception inside wp_read_image_metadata()
+		// would otherwise leave the filter detached for the rest of the
+		// request, silently disabling metadata reads for every later upload.
+		remove_filter( 'wp_read_image_metadata', array( $this, 'read_image_metadata_locally' ), 10 );
+
 		try {
 			if ( false === copy( $file, $tmp ) ) {
 				return $meta;
 			}
-			// Re-enter core with a local path. remove/add avoids infinite recursion.
-			remove_filter( 'wp_read_image_metadata', array( $this, 'read_image_metadata_locally' ), 10 );
-			$result = wp_read_image_metadata( $tmp );
-			add_filter( 'wp_read_image_metadata', array( $this, 'read_image_metadata_locally' ), 10, 5 );
-			return $result;
+			return wp_read_image_metadata( $tmp );
 		} finally {
+			add_filter( 'wp_read_image_metadata', array( $this, 'read_image_metadata_locally' ), 10, 5 );
 			// unlink, not wp_delete_file — the latter re-enters the filter stack.
 			if ( file_exists( $tmp ) ) {
 				unlink( $tmp );
@@ -111,11 +126,17 @@ final class Plugin {
 	/**
 	 * One prefix query instead of a full-bucket scandir().
 	 *
-	 * @return string[]
+	 * Returning null lets core run its own scandir(); returning an array
+	 * short-circuits it. Passing $files through untouched for non-gs paths is
+	 * therefore load-bearing — returning array() here would short-circuit core
+	 * with an EMPTY list and defeat collision detection on local uploads.
+	 *
+	 * @param string[]|null $files
+	 * @return string[]|null
 	 */
-	public function unique_filename_file_list( $files, string $dir, string $filename ): array {
+	public function unique_filename_file_list( $files, string $dir, string $filename ) {
 		if ( ! str_starts_with( $dir, 'gs://' ) ) {
-			return is_array( $files ) ? $files : array();
+			return $files;
 		}
 
 		$bucket = $this->storage->bucket_name();
@@ -141,7 +162,7 @@ final class Plugin {
 			return $post_id;
 		}
 
-		$base = rtrim( $this->public_base_url, '/' ) . '/';
+		$base = $this->base_url . '/';
 		if ( ! str_starts_with( $url, $base ) ) {
 			return $post_id;
 		}
@@ -160,10 +181,14 @@ final class Plugin {
 	}
 
 	/**
+	 * Report zero rather than walk the entire bucket.
+	 *
+	 * Only registered when $skip_space_calculation is true. Enabling it
+	 * disables multisite upload quota enforcement — that is the trade.
+	 *
 	 * @return int
 	 */
-	public function skip_space_used() {
-		// Computing this means walking the bucket. Report 0 rather than stall.
+	public function skip_space_used(): int {
 		return 0;
 	}
 }
