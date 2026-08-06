@@ -51,6 +51,18 @@ final class Plugin {
 	 * @return void
 	 */
 	public function boot(): void {
+		// wp-config.php runs before wp-includes/plugin.php, so add_filter() does
+		// not exist yet. The stream wrapper must be registered that early; these
+		// filters must not be. Fail loudly rather than fatally, and say where the
+		// call belongs.
+		if ( ! function_exists( 'add_filter' ) ) {
+			throw new \RuntimeException(
+				'Ledoent\\AnvilMediaGcs\\Plugin::boot() was called before WordPress loaded its '
+				. 'plugin API. Register the stream wrapper in wp-config.php, but call boot() from '
+				. 'an mu-plugin — see mu-plugin/anvil-media-gcs.php.'
+			);
+		}
+
 		// Point uploads at the bucket. Layout is preserved (YYYY/MM/), which is
 		// what lets migration be an rsync and keeps srcset working untouched.
 		add_filter( 'upload_dir', array( $this, 'filter_upload_dir' ) );
@@ -116,15 +128,22 @@ final class Plugin {
 	 * descriptors and will never work through a stream wrapper. Pull the object
 	 * to a temp file, read there, delete.
 	 *
+	 * Every parameter after $file is deliberately untyped. Core's docblock for
+	 * this filter does not match what it actually passes: wp-admin/includes/
+	 * image.php calls it with null for $image_type, and the trailing arguments
+	 * vary by WordPress version — an int in some, an array in others. Declaring
+	 * scalar types here throws a TypeError inside core's hook dispatcher and
+	 * takes the whole site down on upload. Match the behaviour, not the docs.
+	 *
 	 * @param array<string,mixed>|null $meta          Metadata as core read it.
 	 * @param string                   $file          Path to the image.
-	 * @param int                      $image_type    One of the IMAGETYPE_* constants.
-	 * @param array<string,mixed>|null $iptc          IPTC data, unused here.
-	 * @param int|null                 $attachment_id Attachment post ID, if known.
+	 * @param mixed                    $image_type    IMAGETYPE_* constant, or null.
+	 * @param mixed                    $iptc          IPTC data, unused here.
+	 * @param mixed                    $attachment_id Attachment ID or context; unused.
 	 * @return array<string,mixed>|null Metadata read from a local copy.
 	 */
-	public function read_image_metadata_locally( $meta, string $file, int $image_type, $iptc, $attachment_id = null ) {
-		if ( ! str_starts_with( $file, 'gs://' ) ) {
+	public function read_image_metadata_locally( $meta, $file, $image_type = null, $iptc = null, $attachment_id = null ) {
+		if ( ! is_string( $file ) || ! str_starts_with( $file, 'gs://' ) ) {
 			return $meta;
 		}
 

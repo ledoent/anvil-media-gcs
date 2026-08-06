@@ -1,0 +1,52 @@
+# Local test harness.
+#
+# fake-gcs-server rather than real GCS on purpose: it needs no credentials, so
+# the suite runs offline and in CI. Real ADC/Workload Identity is proven
+# separately against live GCS in-cluster — that path cannot be exercised from a
+# laptop anyway, and pretending otherwise would be a worse test, not a better one.
+services:
+  gcs:
+    image: fsouza/fake-gcs-server:latest
+    command: -scheme http -host 0.0.0.0 -port 4443 -public-host gcs:4443 -backend memory
+    ports: ['4443:4443']
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:4443/storage/v1/b']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  db:
+    image: mariadb:11
+    environment:
+      MARIADB_DATABASE: wordpress
+      MARIADB_USER: wordpress
+      MARIADB_PASSWORD: wordpress
+      MARIADB_ROOT_PASSWORD: root
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  wp:
+    build:
+      context: .
+      dockerfile: tests/harness/Dockerfile
+    depends_on:
+      db: { condition: service_healthy }
+      gcs: { condition: service_healthy }
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+      # Point the Google SDK at the emulator.
+      STORAGE_EMULATOR_HOST: http://gcs:4443
+      ANVIL_BUCKET: anvil-test
+      ANVIL_BASE_URL: http://localhost:4443/anvil-test
+    volumes:
+      - ./src:/anvil/src:ro
+      - ./vendor:/anvil/vendor:ro
+      - ./tests/harness:/harness:ro
+      - ./mu-plugin:/mu-plugin:ro
+    ports: ['8099:80']

@@ -133,8 +133,17 @@ class StreamWrapper extends SdkStreamWrapper {
 		}
 		[ $bucket_name, $key ] = $parsed;
 
-		// A bare bucket root, or a trailing slash, is a directory by definition.
-		if ( '' === $key || str_ends_with( $key, '/' ) ) {
+		// Object stores have no directories. Anything that is not shaped like a
+		// file — the bucket root, a trailing slash, or a key with no extension —
+		// is reported as an existing directory, and needs no API call to decide.
+		//
+		// This is required, not an optimisation. wp_mkdir_p() walks the path
+		// upward and gives up if an ancestor neither exists nor can be created,
+		// so reporting gs://bucket/2026/08 as missing makes every upload fail
+		// with "Unable to create directory". Keys that do carry an extension
+		// fall through to a real lookup, so wp_unique_filename()'s collision
+		// loop still detects free names.
+		if ( '' === $key || str_ends_with( $key, '/' ) || '' === pathinfo( $key, PATHINFO_EXTENSION ) ) {
 			return $this->stat_array( self::MODE_DIR, 0, time() );
 		}
 
@@ -154,15 +163,16 @@ class StreamWrapper extends SdkStreamWrapper {
 				);
 			}
 
-			// Not an object. It may still be a prefix (a "directory"), which
-			// WordPress checks before creating upload subdirectories. One
-			// bounded LIST answers that.
-			foreach ( $bucket->objects(
-				array(
-					'prefix'      => $key . '/',
-					'resultLimit' => 1,
-				)
-			) as $ignored ) {
+			// Not an object. Object stores have no directories, so any key
+			// without a file extension is reported as an existing directory.
+			//
+			// This is required, not a shortcut. wp_mkdir_p() walks the path
+			// upward and gives up if an ancestor neither exists nor can be
+			// created, so returning false for gs://bucket/2026/08 makes every
+			// upload fail with "Unable to create directory". Keys that do carry
+			// an extension stay a genuine miss, so wp_unique_filename()'s
+			// collision loop still detects free names.
+			if ( '' === pathinfo( $key, PATHINFO_EXTENSION ) ) {
 				return $this->stat_array( self::MODE_DIR, 0, time() );
 			}
 
