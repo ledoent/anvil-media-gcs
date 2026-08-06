@@ -24,8 +24,8 @@ use Google\Cloud\Storage\Bucket;
  */
 final class Storage {
 
-	private ?StorageClient $client = null;
-	private ?Bucket $bucket        = null;
+	private ?StorageClient $client   = null;
+	private ?Bucket $bucket          = null;
 	private bool $wrapper_registered = false;
 
 	public function __construct(

@@ -31,7 +31,7 @@ jobs:
           for f in $(find src tests -name '*.php'); do php -l "$f" > /dev/null; done
 
       - name: Coding standards
-        run: vendor/bin/phpcs --standard=PSR12 --warning-severity=0 src
+        run: vendor/bin/phpcs
 
       - name: Unit tests
         run: vendor/bin/phpunit --no-coverage

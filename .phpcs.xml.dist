@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<ruleset name="anvil-media-gcs">
+    <description>WordPress coding standards. PSR-12 is the wrong standard for a
+    WordPress plugin — core style is tabs and spaced parentheses, and matching
+    the host application matters more than matching the PHP-FIG default.</description>
+
+    <arg name="extensions" value="php"/>
+    <arg name="colors"/>
+    <arg value="sp"/>
+    <config name="minimum_supported_wp_version" value="6.7"/>
+
+    <!-- Source: full standard, including documentation. This is a library
+         other people have to read. -->
+    <file>src</file>
+    <rule ref="WordPress-Core"/>
+    <rule ref="WordPress-Docs"/>
+
+    <!-- PSR-4 autoloading is deliberate; WP's one-class-per-file file-naming
+         convention does not apply to a Composer package. -->
+    <rule ref="WordPress.Files.FileName">
+        <severity>0</severity>
+    </rule>
+
+    <!-- Tests: code style yes, docblocks no. A test method name states the
+         behaviour under test; a docblock repeating it is noise. -->
+    <rule ref="WordPress-Core">
+        <include-pattern>tests/*</include-pattern>
+    </rule>
+</ruleset>

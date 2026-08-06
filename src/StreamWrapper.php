@@ -45,20 +45,47 @@ use Google\Cloud\Storage\StreamWrapper as SdkStreamWrapper;
  */
 class StreamWrapper extends SdkStreamWrapper {
 
-	/** Directory mode returned for anything that looks like a prefix. */
+	/**
+	 * Directory mode returned for anything that looks like a prefix.
+	 *
+	 * @var int
+	 */
 	private const MODE_DIR = 0040777;
 
-	/** File mode returned for objects. */
+	/**
+	 * File mode returned for objects.
+	 *
+	 * @var int
+	 */
 	private const MODE_FILE = 0100777;
 
-	/** Bounded LRU of path => stat array|false. */
+	/**
+	 * Bounded LRU of path => stat array, or false for a known miss.
+	 *
+	 * @var array<string,array<int|string,int>|false>
+	 */
 	private static array $stat_cache = array();
 
-	/** Cache ceiling. Generous — entries are tiny — but bounded. */
+	/**
+	 * Cache ceiling. Generous — entries are tiny — but bounded.
+	 *
+	 * @var int
+	 */
 	private static int $stat_cache_limit = 512;
 
+	/**
+	 * Client used for stat lookups.
+	 *
+	 * @var StorageClient|null
+	 */
 	private static ?StorageClient $client = null;
 
+	/**
+	 * Supply the client used by cached stat lookups.
+	 *
+	 * @param StorageClient $client Configured storage client.
+	 * @return void
+	 */
 	public static function attach( StorageClient $client ): void {
 		self::$client = $client;
 	}
@@ -95,6 +122,8 @@ class StreamWrapper extends SdkStreamWrapper {
 	/**
 	 * One API call, not three.
 	 *
+	 * @param string $path  gs:// URL.
+	 * @param int    $flags Stream API flags.
 	 * @return array<int|string,int>|false
 	 */
 	private function compute_stat( string $path, int $flags ) {
@@ -128,7 +157,12 @@ class StreamWrapper extends SdkStreamWrapper {
 			// Not an object. It may still be a prefix (a "directory"), which
 			// WordPress checks before creating upload subdirectories. One
 			// bounded LIST answers that.
-			foreach ( $bucket->objects( array( 'prefix' => $key . '/', 'resultLimit' => 1 ) ) as $ignored ) {
+			foreach ( $bucket->objects(
+				array(
+					'prefix'      => $key . '/',
+					'resultLimit' => 1,
+				)
+			) as $ignored ) {
 				return $this->stat_array( self::MODE_DIR, 0, time() );
 			}
 
@@ -150,6 +184,9 @@ class StreamWrapper extends SdkStreamWrapper {
 	/**
 	 * Both numeric and string keys, as stat() callers expect.
 	 *
+	 * @param int $mode  Stat mode bits.
+	 * @param int $size  Object size in bytes.
+	 * @param int $mtime Modification time as a Unix timestamp.
 	 * @return array<int|string,int>
 	 */
 	private function stat_array( int $mode, int $size, int $mtime ): array {
@@ -173,13 +210,16 @@ class StreamWrapper extends SdkStreamWrapper {
 	}
 
 	/**
-	 * @return array{0:string,1:string}|null
+	 * Split a gs:// URL into bucket and object key.
+	 *
+	 * @param string $path gs:// URL.
+	 * @return array{0:string,1:string}|null Bucket and key, or null if not gs://.
 	 */
 	private static function parse_path( string $path ): ?array {
 		if ( ! str_starts_with( $path, 'gs://' ) ) {
 			return null;
 		}
-		$rest = substr( $path, 5 );
+		$rest  = substr( $path, 5 );
 		$slash = strpos( $rest, '/' );
 		if ( false === $slash ) {
 			return array( $rest, '' );
@@ -187,12 +227,20 @@ class StreamWrapper extends SdkStreamWrapper {
 		return array( substr( $rest, 0, $slash ), substr( $rest, $slash + 1 ) );
 	}
 
-	/** Test seam. */
+	/**
+	 * Empty the stat cache. Test seam.
+	 *
+	 * @return void
+	 */
 	public static function flush_stat_cache(): void {
 		self::$stat_cache = array();
 	}
 
-	/** Test seam. */
+	/**
+	 * Number of cached stat entries. Test seam.
+	 *
+	 * @return int
+	 */
 	public static function stat_cache_size(): int {
 		return count( self::$stat_cache );
 	}

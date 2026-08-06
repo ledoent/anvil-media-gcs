@@ -19,12 +19,23 @@ namespace Ledoent\AnvilMediaGcs;
  */
 final class Plugin {
 
-	/** Normalised once; every call site previously re-trimmed it. */
+	/**
+	 * Public base URL, normalised once rather than at each call site.
+	 *
+	 * @var string
+	 */
 	private readonly string $base_url;
 
 	/**
-	 * @param string $public_base_url Public base URL objects are served from
-	 *                                (CDN host, or storage.googleapis.com/bucket).
+	 * Construct the integration.
+	 *
+	 * @param Storage $storage                 GCS client and bucket handle.
+	 * @param string  $public_base_url         Base URL objects are served from
+	 *                                         (a CDN host, or
+	 *                                         storage.googleapis.com/bucket).
+	 * @param bool    $skip_space_calculation  Report zero space used instead of
+	 *                                         walking the bucket. Disables
+	 *                                         multisite upload quotas.
 	 */
 	public function __construct(
 		private readonly Storage $storage,
@@ -34,6 +45,11 @@ final class Plugin {
 		$this->base_url = rtrim( $public_base_url, '/' );
 	}
 
+	/**
+	 * Register every filter.
+	 *
+	 * @return void
+	 */
 	public function boot(): void {
 		// Point uploads at the bucket. Layout is preserved (YYYY/MM/), which is
 		// what lets migration be an rsync and keeps srcset working untouched.
@@ -62,8 +78,10 @@ final class Plugin {
 	}
 
 	/**
-	 * @param array<string,mixed> $dirs
-	 * @return array<string,mixed>
+	 * Point uploads at the bucket, preserving the YYYY/MM layout.
+	 *
+	 * @param array<string,mixed> $dirs Upload directory data from core.
+	 * @return array<string,mixed> Directory data rewritten for GCS.
 	 */
 	public function filter_upload_dir( array $dirs ): array {
 		$bucket = $this->storage->bucket_name();
@@ -76,6 +94,13 @@ final class Plugin {
 		return $dirs;
 	}
 
+	/**
+	 * Serve an attachment from the bucket or CDN.
+	 *
+	 * @param string $url           URL as core computed it.
+	 * @param int    $attachment_id Attachment post ID.
+	 * @return string Public URL for the object.
+	 */
 	public function filter_attachment_url( string $url, int $attachment_id ): string {
 		$file = get_post_meta( $attachment_id, '_wp_attached_file', true );
 		if ( ! is_string( $file ) || '' === $file ) {
@@ -85,13 +110,18 @@ final class Plugin {
 	}
 
 	/**
+	 * Read EXIF/IPTC from a local copy of the object.
+	 *
 	 * exif_read_data() and iptcparse() are implemented in C against real file
 	 * descriptors and will never work through a stream wrapper. Pull the object
 	 * to a temp file, read there, delete.
 	 *
-	 * @param array<string,mixed>|null $meta
-	 * @param array<string,mixed>|null $iptc
-	 * @return array<string,mixed>|null
+	 * @param array<string,mixed>|null $meta          Metadata as core read it.
+	 * @param string                   $file          Path to the image.
+	 * @param int                      $image_type    One of the IMAGETYPE_* constants.
+	 * @param array<string,mixed>|null $iptc          IPTC data, unused here.
+	 * @param int|null                 $attachment_id Attachment post ID, if known.
+	 * @return array<string,mixed>|null Metadata read from a local copy.
 	 */
 	public function read_image_metadata_locally( $meta, string $file, int $image_type, $iptc, $attachment_id = null ) {
 		if ( ! str_starts_with( $file, 'gs://' ) ) {
@@ -131,8 +161,10 @@ final class Plugin {
 	 * therefore load-bearing — returning array() here would short-circuit core
 	 * with an EMPTY list and defeat collision detection on local uploads.
 	 *
-	 * @param string[]|null $files
-	 * @return string[]|null
+	 * @param string[]|null $files    Candidate list, or null to let core scan.
+	 * @param string        $dir      Directory being written to.
+	 * @param string        $filename Proposed filename.
+	 * @return string[]|null Existing names sharing the stem, or $files untouched.
 	 */
 	public function unique_filename_file_list( $files, string $dir, string $filename ) {
 		if ( ! str_starts_with( $dir, 'gs://' ) ) {
@@ -155,7 +187,14 @@ final class Plugin {
 	}
 
 	/**
-	 * @return int|null
+	 * Resolve an attachment ID from a bucket or CDN URL.
+	 *
+	 * Core's own lookup is an exact string match against _wp_attached_file and
+	 * so fails whenever media is served from a different host.
+	 *
+	 * @param int|null $post_id Post ID resolved so far, if any.
+	 * @param string   $url     URL to resolve.
+	 * @return int|null Attachment ID, or the incoming value if not ours.
 	 */
 	public function attachment_url_to_postid( $post_id, string $url ) {
 		if ( null !== $post_id && 0 !== $post_id ) {

@@ -37,7 +37,7 @@ final class StreamWrapperTest extends TestCase {
 	 * exist; if only hits were cached it would re-query on every iteration.
 	 */
 	public function test_negative_results_are_cached(): void {
-		$w = new StreamWrapper();
+		$w    = new StreamWrapper();
 		$path = 'gs://bucket/2026/08/does-not-exist.jpg';
 
 		$this->assertFalse( $w->url_stat( $path, STREAM_URL_STAT_QUIET ) );
@@ -67,7 +67,7 @@ final class StreamWrapperTest extends TestCase {
 	 * any API call — wp_mkdir_p() hits this on every wp_upload_dir().
 	 */
 	public function test_directory_paths_stat_as_directories_without_a_client(): void {
-		$w = new StreamWrapper();
+		$w    = new StreamWrapper();
 		$stat = $w->url_stat( 'gs://bucket/2026/08/', STREAM_URL_STAT_QUIET );
 
 		$this->assertIsArray( $stat );

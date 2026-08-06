@@ -47,7 +47,13 @@ final class PluginTest extends TestCase {
 
 	public function test_trailing_slash_on_base_url_does_not_double(): void {
 		$dirs = $this->plugin( 'https://cdn.example.com/' )->filter_upload_dir(
-			array( 'basedir' => '', 'baseurl' => '', 'subdir' => '/2026/08', 'path' => '', 'url' => '' )
+			array(
+				'basedir' => '',
+				'baseurl' => '',
+				'subdir'  => '/2026/08',
+				'path'    => '',
+				'url'     => '',
+			)
 		);
 		$this->assertSame( 'https://cdn.example.com/2026/08', $dirs['url'] );
 		$this->assertStringNotContainsString( '//2026', $dirs['url'] );
