@@ -24,15 +24,46 @@ use Google\Cloud\Storage\Bucket;
  */
 final class Storage {
 
-	private ?StorageClient $client   = null;
-	private ?Bucket $bucket          = null;
+	/**
+	 * Lazily constructed client.
+	 *
+	 * @var StorageClient|null
+	 */
+	private ?StorageClient $client = null;
+
+	/**
+	 * Lazily constructed bucket handle.
+	 *
+	 * @var Bucket|null
+	 */
+	private ?Bucket $bucket = null;
+
+	/**
+	 * Whether the stream wrapper has already been installed.
+	 *
+	 * @var bool
+	 */
 	private bool $wrapper_registered = false;
 
+	/**
+	 * Construct the storage handle.
+	 *
+	 * @param string      $bucket_name Bucket objects are stored in.
+	 * @param string|null $project_id  Project ID, where it cannot be inferred.
+	 */
 	public function __construct(
 		private readonly string $bucket_name,
 		private readonly ?string $project_id = null
 	) {}
 
+	/**
+	 * The storage client.
+	 *
+	 * No credentials are passed: the SDK resolves Application Default
+	 * Credentials, which on GKE means Workload Identity.
+	 *
+	 * @return StorageClient
+	 */
 	public function client(): StorageClient {
 		if ( null === $this->client ) {
 			$config = array();
@@ -44,6 +75,11 @@ final class Storage {
 		return $this->client;
 	}
 
+	/**
+	 * The bucket handle.
+	 *
+	 * @return Bucket
+	 */
 	public function bucket(): Bucket {
 		if ( null === $this->bucket ) {
 			$this->bucket = $this->client()->bucket( $this->bucket_name );
@@ -51,6 +87,11 @@ final class Storage {
 		return $this->bucket;
 	}
 
+	/**
+	 * Name of the configured bucket.
+	 *
+	 * @return string
+	 */
 	public function bucket_name(): string {
 		return $this->bucket_name;
 	}
@@ -97,6 +138,9 @@ final class Storage {
 	 * means migration needs no database rewrite at all, and
 	 * wp_calculate_image_srcset() — which substring-tests the rendered URL and
 	 * silently drops srcset entirely on a mismatch — keeps working untouched.
+	 *
+	 * @param string $relative_path Path relative to the uploads basedir.
+	 * @return string Object key.
 	 */
 	public function key_for( string $relative_path ): string {
 		return ltrim( $relative_path, '/' );

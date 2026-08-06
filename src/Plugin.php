@@ -112,7 +112,7 @@ final class Plugin {
 	/**
 	 * Read EXIF/IPTC from a local copy of the object.
 	 *
-	 * exif_read_data() and iptcparse() are implemented in C against real file
+	 * EXIF and IPTC parsing are implemented in C against real file
 	 * descriptors and will never work through a stream wrapper. Pull the object
 	 * to a temp file, read there, delete.
 	 *
