@@ -96,6 +96,23 @@ final class PluginTest extends TestCase {
 	 * Reporting 0 space used silently disables multisite upload quotas, so it
 	 * must not happen unless explicitly requested.
 	 */
+	public function test_conditional_hook_is_skipped_on_older_wordpress(): void {
+		$GLOBALS['_test_wp_version'] = '6.5';
+		$GLOBALS['_test_filters']    = array();
+		$this->plugin()->boot();
+		$this->assertArrayNotHasKey(
+			'pre_attachment_url_to_postid',
+			$GLOBALS['_test_filters'],
+			'the 6.7-only hook must not register on 6.5'
+		);
+
+		$GLOBALS['_test_wp_version'] = '6.7';
+		$GLOBALS['_test_filters']    = array();
+		$this->plugin()->boot();
+		$this->assertArrayHasKey( 'pre_attachment_url_to_postid', $GLOBALS['_test_filters'] );
+		unset( $GLOBALS['_test_wp_version'] );
+	}
+
 	public function test_space_calculation_is_not_skipped_by_default(): void {
 		$GLOBALS['_test_filters'] = array();
 		$this->plugin()->boot();

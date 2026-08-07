@@ -28,6 +28,11 @@ if ( ! function_exists( 'get_post_meta' ) ) {
 		return $GLOBALS['_test_postmeta'][ $id ][ $key ] ?? '';
 	}
 }
+if ( ! function_exists( 'get_bloginfo' ) ) {
+    function get_bloginfo( string $show = '' ) {
+        return 'version' === $show ? ( $GLOBALS['_test_wp_version'] ?? '6.7' ) : '';
+    }
+}
 if ( ! function_exists( 'wp_tempnam' ) ) {
 	function wp_tempnam( string $filename = '' ) {
 		return tempnam( sys_get_temp_dir(), 'anvil' ); }
