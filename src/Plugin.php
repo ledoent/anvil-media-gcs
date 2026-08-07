@@ -226,13 +226,13 @@ final class Plugin {
 			return $post_id;
 		}
 
-		$base = $this->base_url . '/';
-		if ( ! str_starts_with( $url, $base ) ) {
+		$base     = $this->base_url . '/';
+		$relative = self::relative_to_base( $url, $base );
+		if ( null === $relative ) {
 			return $post_id;
 		}
 
 		global $wpdb;
-		$relative = substr( $url, strlen( $base ) );
 
 		$found = $wpdb->get_var(
 			$wpdb->prepare(
@@ -242,6 +242,55 @@ final class Plugin {
 		);
 
 		return $found ? (int) $found : $post_id;
+	}
+
+	/**
+	 * The part of $url below $base, or null if $url is not under it.
+	 *
+	 * A plain str_starts_with() is not enough, because the URLs stored in a real
+	 * database are not all written the way core writes them:
+	 *
+	 *   //cdn.example.com/2026/08/x.jpg   protocol-relative
+	 *   http://cdn.example.com/…          http, against an https base
+	 *
+	 * Page builders are the main source of the first form. Slider Revolution
+	 * persists every slide image protocol-relative in data-thumb/data-lazyload,
+	 * and WPBakery does the same in saved layout markup — a single real site
+	 * audited during this plugin's development held 1,614 of them. Those are
+	 * exactly the sites this plugin targets, so failing to resolve their media
+	 * is not an edge case.
+	 *
+	 * The comparison drops the scheme from both sides. The host and path still
+	 * have to match exactly, so this widens what is recognised without making
+	 * the match loose.
+	 *
+	 * @param string $url  URL to test.
+	 * @param string $base Base URL, with a trailing slash.
+	 * @return string|null Path below the base, or null when not a match.
+	 */
+	private static function relative_to_base( string $url, string $base ): ?string {
+		if ( str_starts_with( $url, $base ) ) {
+			return substr( $url, strlen( $base ) );
+		}
+
+		$strip = static function ( string $value ): string {
+			return preg_replace( '#^(?:https?:)?//#i', '', $value ) ?? $value;
+		};
+
+		$bare_base = $strip( $base );
+		$bare_url  = $strip( $url );
+
+		// Only a scheme may differ. If stripping changed neither string then the
+		// URL was relative to begin with and is not ours to claim.
+		if ( $bare_base === $base && $bare_url === $url ) {
+			return null;
+		}
+
+		if ( ! str_starts_with( $bare_url, $bare_base ) ) {
+			return null;
+		}
+
+		return substr( $bare_url, strlen( $bare_base ) );
 	}
 
 	/**

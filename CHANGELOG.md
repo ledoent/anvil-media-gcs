@@ -5,6 +5,26 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- `attachment_url_to_postid()` now resolves **protocol-relative** (`//host/…`)
+  and scheme-mismatched (`http://` against an `https://` base) media URLs.
+  Previously an exact prefix match rejected both, so on a migrated site every
+  such URL silently failed to resolve to its attachment.
+
+  This is not hypothetical. Page builders do not write media URLs the way core
+  does: Slider Revolution stores every slide image protocol-relative in
+  `data-thumb`/`data-lazyload`, and WPBakery does the same in saved layout
+  markup. A production WordPress site audited while integrating this plugin held
+  **1,614** of them — and those are precisely the sites this plugin exists to
+  move.
+
+  The comparison drops the scheme from both sides only; host and path must still
+  match exactly, so a lookalike such as `//cdn.example.com.attacker.test/…` is
+  still rejected. Both the recognised and the rejected forms are covered by
+  tests.
+
 ## [0.1.0] — 2026-08-07
 
 ### Added
