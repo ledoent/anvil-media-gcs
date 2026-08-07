@@ -1,5 +1,10 @@
 # anvil-media-gcs
 
+[![CI](https://github.com/ledoent/anvil-media-gcs/actions/workflows/ci.yml/badge.svg)](https://github.com/ledoent/anvil-media-gcs/actions/workflows/ci.yml)
+[![PHP 8.1+](https://img.shields.io/badge/php-8.1%2B-777bb4)](composer.json)
+[![License: GPL-2.0-or-later](https://img.shields.io/badge/license-GPL--2.0--or--later-blue)](LICENSE)
+[![PHPStan level 6](https://img.shields.io/badge/phpstan-level%206-brightgreen)](phpstan.neon.dist)
+
 **Keyless WordPress media offload to Google Cloud Storage.** Authenticates through Workload Identity / Application Default Credentials — no service-account JSON key, no HMAC key, nothing to rotate or leak.
 
 ---
@@ -43,7 +48,12 @@ Working and verified against live GCS on GKE. Pre-1.0 — the API may still move
 composer require ledoent/anvil-media-gcs
 ```
 
-Register the stream wrapper in **`wp-config.php`, before WordPress loads** — not from plugin scope, or WordPress will have touched the filesystem first:
+Setup is two-stage, and the split is not optional.
+
+**Stage 1 — `wp-config.php`.** The stream wrapper must exist before WordPress
+touches the filesystem, which means wp-config. But at that point
+`wp-includes/plugin.php` has not loaded and `add_filter()` does not exist yet,
+so the filters cannot be registered here.
 
 ```php
 require_once __DIR__ . '/vendor/autoload.php';
@@ -51,13 +61,24 @@ require_once __DIR__ . '/vendor/autoload.php';
 $anvil = new Ledoent\AnvilMediaGcs\Storage( 'your-bucket', 'your-project' );
 $anvil->register_stream_wrapper();
 
-( new Ledoent\AnvilMediaGcs\Plugin(
+$GLOBALS['anvil_media_gcs'] = new Ledoent\AnvilMediaGcs\Plugin(
     $anvil,
     'https://storage.googleapis.com/your-bucket'   // or your CDN host
-) )->boot();
+);
 
 define( 'FS_METHOD', 'direct' );
 ```
+
+**Stage 2 — an mu-plugin.** Copy `mu-plugin/anvil-media-gcs.php` into
+`wp-content/mu-plugins/`. It calls `boot()` once the plugin API exists.
+
+```console
+cp vendor/ledoent/anvil-media-gcs/mu-plugin/anvil-media-gcs.php \
+   wp-content/mu-plugins/
+```
+
+Calling `boot()` from wp-config throws a `RuntimeException` naming this fix,
+rather than dying on an undefined function.
 
 `FS_METHOD` is not optional. `get_filesystem_method()` compares `fileowner()` of a probe file against the plugin directory's owner; a stream reports `uid=0`, the comparison fails, and WordPress falls through to `ssh2`/`ftpext` and prompts for FTP credentials.
 

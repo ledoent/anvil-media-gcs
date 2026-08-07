@@ -1,0 +1,13 @@
+includes:
+    - vendor/szepeviktor/phpstan-wordpress/extension.neon
+
+parameters:
+    level: 6
+    # The WordPress stubs are large; the default 128M is not enough.
+    parallel:
+        maximumNumberOfProcesses: 2
+    paths:
+        - src
+    # WordPress core functions and constants are not autoloadable here; the
+    # WordPress extension above supplies their stubs.
+    treatPhpDocTypesAsCertain: false

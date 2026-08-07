@@ -33,6 +33,9 @@ jobs:
       - name: Coding standards
         run: vendor/bin/phpcs
 
+      - name: Static analysis
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=512M
+
       - name: Unit tests
         run: vendor/bin/phpunit --no-coverage
 

@@ -1,0 +1,17 @@
+# Keep development files out of the distributed package. Without this, every
+# `composer require` of this library also downloads the test harness, CI config
+# and Docker files — dead weight in every consumer's vendor/ directory.
+/.github            export-ignore
+/tests              export-ignore
+/.gitattributes     export-ignore
+/.gitignore         export-ignore
+/.editorconfig      export-ignore
+/.phpcs.xml.dist    export-ignore
+/phpunit.xml.dist   export-ignore
+/phpstan.neon.dist  export-ignore
+/docker-compose.test.yml export-ignore
+/CONTRIBUTING.md    export-ignore
+
+# Normalise line endings.
+* text=auto eol=lf
+*.php text
