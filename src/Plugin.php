@@ -48,6 +48,7 @@ final class Plugin {
 	/**
 	 * Register every filter.
 	 *
+	 * @throws \RuntimeException If called before WordPress loads its plugin API.
 	 * @return void
 	 */
 	public function boot(): void {
