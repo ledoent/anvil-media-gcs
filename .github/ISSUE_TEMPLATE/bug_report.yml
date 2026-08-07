@@ -1,0 +1,41 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: if the error mentions a missing service-account key or
+        HMAC key, that is a misconfiguration rather than a bug — but please
+        still file it, because it means the README is unclear.
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      placeholder: "anvil-media-gcs 0.1.0, WordPress 6.7.1, PHP 8.3, GKE 1.35"
+    validations: { required: true }
+  - type: dropdown
+    id: auth
+    attributes:
+      label: How is the workload authenticating?
+      options:
+        - Workload Identity (GKE)
+        - GCE service account
+        - gcloud application-default credentials (local)
+        - Other / not sure
+    validations: { required: true }
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect instead?
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+    validations: { required: true }
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant errors
+      render: shell

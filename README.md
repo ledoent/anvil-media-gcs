@@ -38,8 +38,9 @@ Working and verified against live GCS on GKE. Pre-1.0 — the API may still move
 
 ## Requirements
 
-- PHP 8.1+
-- WordPress 6.7+ (uses `pre_attachment_url_to_postid`, added in 6.7)
+- **PHP 8.1+** — floor set by `google/cloud-storage` v2, tested through 8.5
+- **WordPress 5.3+** — the one 6.7-only hook (`pre_attachment_url_to_postid`)
+  registers conditionally, so older installs simply keep core's own behaviour
 - A GCS bucket, and a workload with an identity holding `roles/storage.objectAdmin` **on that bucket only**
 
 ## Install

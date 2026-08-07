@@ -80,8 +80,13 @@ final class Plugin {
 		add_filter( 'pre_wp_unique_filename_file_list', array( $this, 'unique_filename_file_list' ), 10, 3 );
 
 		// Exact-string-match against _wp_attached_file fails when served from a
-		// CDN host. Core added this short-circuit in 6.7.
-		add_filter( 'pre_attachment_url_to_postid', array( $this, 'attachment_url_to_postid' ), 10, 2 );
+		// CDN host. Core only added this short-circuit in 6.7, so register it
+		// conditionally rather than making 6.7 a hard floor — everything else
+		// here works back to 5.3, and WordPress install bases move slowly.
+		// Without it, attachment_url_to_postid() simply stays as core wrote it.
+		if ( version_compare( get_bloginfo( 'version' ), '6.7', '>=' ) ) {
+			add_filter( 'pre_attachment_url_to_postid', array( $this, 'attachment_url_to_postid' ), 10, 2 );
+		}
 
 		// Only short-circuit space accounting when asked. Reporting 0 is a lie
 		// that silently disables multisite upload quotas, so it must be opt-in.
