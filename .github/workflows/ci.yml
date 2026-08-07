@@ -13,7 +13,7 @@ jobs:
         php: ['8.1', '8.2', '8.3', '8.4', '8.5']
     name: PHP ${{ matrix.php }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: shivammathur/setup-php@v2
         with:
@@ -24,7 +24,7 @@ jobs:
       - name: Validate composer.json
         run: composer validate --strict
 
-      - uses: ramsey/composer-install@v3
+      - uses: ramsey/composer-install@v4
 
       - name: Lint
         run: |
@@ -43,12 +43,12 @@ jobs:
     runs-on: ubuntu-latest
     name: WordPress integration
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: shivammathur/setup-php@v2
         with: { php-version: '8.3', tools: 'composer:v2', coverage: none }
 
-      - uses: ramsey/composer-install@v3
+      - uses: ramsey/composer-install@v4
 
       - name: Boot stack
         run: docker compose -f docker-compose.test.yml up -d --build --wait
