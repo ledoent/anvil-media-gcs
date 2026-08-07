@@ -93,6 +93,69 @@ final class PluginTest extends TestCase {
 	}
 
 	/**
+	 * The URL forms that actually occur in a migrated database.
+	 *
+	 * Page builders do not write media URLs the way core does. Slider Revolution
+	 * stores every slide image protocol-relative, and old content routinely mixes
+	 * http against an https base. These must reach the database lookup rather
+	 * than being rejected by a scheme mismatch.
+	 *
+	 * There is no $wpdb in the unit-test bootstrap, so reaching the query is
+	 * itself the assertion: a match gets past the guard and dies on the missing
+	 * global, while a non-match returns early. Anything that returns cleanly here
+	 * was never recognised as ours.
+	 *
+	 * @dataProvider recognised_url_forms
+	 */
+	public function test_attachment_url_to_postid_recognises_real_world_url_forms( string $url ): void {
+		try {
+			$this->plugin()->attachment_url_to_postid( null, $url );
+		} catch ( \Throwable $e ) {
+			$this->addToAssertionCount( 1 );
+			return;
+		}
+
+		$this->fail( "URL was not recognised as belonging to the bucket: {$url}" );
+	}
+
+	/**
+	 * @return array<string,array{0:string}>
+	 */
+	public static function recognised_url_forms(): array {
+		return array(
+			'canonical https'            => array( 'https://cdn.example.com/2026/08/x.jpg' ),
+			'protocol-relative'          => array( '//cdn.example.com/2026/08/x.jpg' ),
+			'http against an https base' => array( 'http://cdn.example.com/2026/08/x.jpg' ),
+		);
+	}
+
+	/**
+	 * Dropping the scheme must not turn the match into a substring free-for-all.
+	 *
+	 * @dataProvider rejected_url_forms
+	 */
+	public function test_attachment_url_to_postid_still_rejects_non_matches( string $url ): void {
+		$this->assertNull(
+			$this->plugin()->attachment_url_to_postid( null, $url ),
+			"URL must not be treated as ours: {$url}"
+		);
+	}
+
+	/**
+	 * @return array<string,array{0:string}>
+	 */
+	public static function rejected_url_forms(): array {
+		return array(
+			// A lookalike host that merely *contains* the real one.
+			'suffix host'         => array( '//evil-cdn.example.com.attacker.test/2026/08/x.jpg' ),
+			'foreign host'        => array( '//elsewhere.test/2026/08/x.jpg' ),
+			// Relative paths carry no host and must never be claimed.
+			'root-relative path'  => array( '/2026/08/x.jpg' ),
+			'bare relative path'  => array( '2026/08/x.jpg' ),
+		);
+	}
+
+	/**
 	 * Reporting 0 space used silently disables multisite upload quotas, so it
 	 * must not happen unless explicitly requested.
 	 */
